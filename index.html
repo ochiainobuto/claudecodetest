@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SakegeChan - 動かせるキャラクター</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            font-family: 'Arial', sans-serif;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #character {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            transition: transform 0.1s ease;
+            cursor: grab;
+        }
+
+        #character:active {
+            cursor: grabbing;
+        }
+
+        #character img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        }
+
+        #instructions {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-align: center;
+            z-index: 1000;
+        }
+
+        #instructions h2 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 20px;
+        }
+
+        #instructions p {
+            margin: 5px 0;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .key {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin: 0 2px;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">
+        <h2>🎮 SakegeChanを動かそう！</h2>
+        <p>
+            <span class="key">↑</span>
+            <span class="key">↓</span>
+            <span class="key">←</span>
+            <span class="key">→</span>
+            矢印キーで移動
+        </p>
+        <p>マウスでドラッグしても動かせます！</p>
+    </div>
+
+    <div id="game-container">
+        <div id="character">
+            <img src="images/sakegechan_stand.png" alt="SakegeChan" draggable="false">
+        </div>
+    </div>
+
+    <script>
+        // キャラクターの初期位置
+        let posX = window.innerWidth / 2 - 50;
+        let posY = window.innerHeight / 2 - 50;
+        const moveSpeed = 10;
+
+        const character = document.getElementById('character');
+
+        // 初期位置を設定
+        updatePosition();
+
+        // キーボード操作
+        const keys = {};
+
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+
+        // ゲームループ
+        function gameLoop() {
+            if (keys['ArrowUp'] || keys['w']) {
+                posY = Math.max(0, posY - moveSpeed);
+            }
+            if (keys['ArrowDown'] || keys['s']) {
+                posY = Math.min(window.innerHeight - 100, posY + moveSpeed);
+            }
+            if (keys['ArrowLeft'] || keys['a']) {
+                posX = Math.max(0, posX - moveSpeed);
+            }
+            if (keys['ArrowRight'] || keys['d']) {
+                posX = Math.min(window.innerWidth - 100, posX + moveSpeed);
+            }
+
+            updatePosition();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updatePosition() {
+            character.style.left = posX + 'px';
+            character.style.top = posY + 'px';
+        }
+
+        // ドラッグ機能
+        let isDragging = false;
+        let dragOffsetX = 0;
+        let dragOffsetY = 0;
+
+        character.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            dragOffsetX = e.clientX - posX;
+            dragOffsetY = e.clientY - posY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                posX = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffsetX));
+                posY = Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragOffsetY));
+                updatePosition();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // タッチ操作（スマホ対応）
+        character.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            isDragging = true;
+            dragOffsetX = touch.clientX - posX;
+            dragOffsetY = touch.clientY - posY;
+            e.preventDefault();
+        });
+
+        document.addEventListener('touchmove', (e) => {
+            if (isDragging) {
+                const touch = e.touches[0];
+                posX = Math.max(0, Math.min(window.innerWidth - 100, touch.clientX - dragOffsetX));
+                posY = Math.max(0, Math.min(window.innerHeight - 100, touch.clientY - dragOffsetY));
+                updatePosition();
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('touchend', () => {
+            isDragging = false;
+        });
+
+        // ウィンドウリサイズ対応
+        window.addEventListener('resize', () => {
+            posX = Math.min(posX, window.innerWidth - 100);
+            posY = Math.min(posY, window.innerHeight - 100);
+            updatePosition();
+        });
+
+        // ゲームループ開始
+        gameLoop();
+    </script>
+</body>
+</html>
