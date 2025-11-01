@@ -3,39 +3,25 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SakegeChan - 動かせるキャラクター</title>
+    <title>SakegeChan - ドンキーコング風ゲーム</title>
     <style>
         body {
             margin: 0;
             padding: 0;
             overflow: hidden;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #000;
             font-family: 'Arial', sans-serif;
-        }
-
-        #game-container {
-            position: relative;
-            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             height: 100vh;
         }
 
-        #character {
-            position: absolute;
-            width: 100px;
-            height: 100px;
-            transition: transform 0.1s ease;
-            cursor: grab;
-        }
-
-        #character:active {
-            cursor: grabbing;
-        }
-
-        #character img {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+        #game-canvas {
+            border: 2px solid #fff;
+            background: #1a1a2e;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
         }
 
         #instructions {
@@ -43,10 +29,10 @@
             top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.95);
             padding: 15px 30px;
             border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.5);
             text-align: center;
             z-index: 1000;
         }
@@ -65,7 +51,7 @@
 
         .key {
             display: inline-block;
-            background: #667eea;
+            background: #ff6b6b;
             color: white;
             padding: 3px 8px;
             border-radius: 4px;
@@ -76,124 +62,235 @@
 </head>
 <body>
     <div id="instructions">
-        <h2>🎮 SakegeChanを動かそう！</h2>
+        <h2>🎮 ドンキーコング風ゲーム</h2>
         <p>
-            <span class="key">↑</span>
-            <span class="key">↓</span>
             <span class="key">←</span>
             <span class="key">→</span>
-            矢印キーで移動
+            移動 |
+            <span class="key">スペース</span>
+            ジャンプ
         </p>
-        <p>マウスでドラッグしても動かせます！</p>
     </div>
 
-    <div id="game-container">
-        <div id="character">
-            <img src="images/sakegechan_stand.png" alt="SakegeChan" draggable="false">
-        </div>
-    </div>
+    <canvas id="game-canvas"></canvas>
 
     <script>
-        // キャラクターの初期位置
-        let posX = window.innerWidth / 2 - 50;
-        let posY = window.innerHeight / 2 - 50;
-        const moveSpeed = 10;
+        // Canvas設定
+        const canvas = document.getElementById('game-canvas');
+        const ctx = canvas.getContext('2d');
 
-        const character = document.getElementById('character');
+        canvas.width = 800;
+        canvas.height = 600;
 
-        // 初期位置を設定
-        updatePosition();
+        // 画像の読み込み
+        const playerImg = new Image();
+        playerImg.src = 'images/sakegechan_stand.png';
 
-        // キーボード操作
+        const blockImg = new Image();
+        blockImg.src = 'images/block01.png';
+
+        // ゲーム定数
+        const GRAVITY = 0.6;
+        const JUMP_STRENGTH = -15;
+        const MOVE_SPEED = 5;
+        const BLOCK_SIZE = 40;
+
+        // プレイヤー
+        const player = {
+            x: 100,
+            y: 100,
+            width: 50,
+            height: 50,
+            velocityX: 0,
+            velocityY: 0,
+            isOnGround: false,
+            isJumping: false
+        };
+
+        // ドンキーコング風のステージレイアウト
+        // 各ブロックは [x, y, width, height] の形式（ブロック単位）
+        const platforms = [
+            // 底面
+            { x: 0, y: 560, width: 800, height: 40 },
+
+            // 1階層目（右側）
+            { x: 500, y: 480, width: 300, height: 40 },
+
+            // 2階層目（左側）
+            { x: 0, y: 400, width: 350, height: 40 },
+
+            // 3階層目（右側）
+            { x: 450, y: 320, width: 350, height: 40 },
+
+            // 4階層目（左側）
+            { x: 0, y: 240, width: 400, height: 40 },
+
+            // 5階層目（右側）
+            { x: 400, y: 160, width: 400, height: 40 },
+
+            // 最上階（左側）
+            { x: 0, y: 80, width: 450, height: 40 }
+        ];
+
+        // キー入力
         const keys = {};
 
         document.addEventListener('keydown', (e) => {
             keys[e.key] = true;
+
+            // スペースキーでジャンプ
+            if ((e.key === ' ' || e.key === 'ArrowUp') && player.isOnGround) {
+                player.velocityY = JUMP_STRENGTH;
+                player.isOnGround = false;
+                player.isJumping = true;
+            }
         });
 
         document.addEventListener('keyup', (e) => {
             keys[e.key] = false;
         });
 
-        // ゲームループ
-        function gameLoop() {
-            if (keys['ArrowUp'] || keys['w']) {
-                posY = Math.max(0, posY - moveSpeed);
-            }
-            if (keys['ArrowDown'] || keys['s']) {
-                posY = Math.min(window.innerHeight - 100, posY + moveSpeed);
-            }
+        // 衝突判定
+        function checkCollision(rect1, rect2) {
+            return rect1.x < rect2.x + rect2.width &&
+                   rect1.x + rect1.width > rect2.x &&
+                   rect1.y < rect2.y + rect2.height &&
+                   rect1.y + rect1.height > rect2.y;
+        }
+
+        // プレイヤーの更新
+        function updatePlayer() {
+            // 水平移動
             if (keys['ArrowLeft'] || keys['a']) {
-                posX = Math.max(0, posX - moveSpeed);
-            }
-            if (keys['ArrowRight'] || keys['d']) {
-                posX = Math.min(window.innerWidth - 100, posX + moveSpeed);
+                player.velocityX = -MOVE_SPEED;
+            } else if (keys['ArrowRight'] || keys['d']) {
+                player.velocityX = MOVE_SPEED;
+            } else {
+                player.velocityX = 0;
             }
 
-            updatePosition();
+            // 重力適用
+            player.velocityY += GRAVITY;
+
+            // 位置更新
+            player.x += player.velocityX;
+            player.y += player.velocityY;
+
+            // 地面判定フラグをリセット
+            player.isOnGround = false;
+
+            // プラットフォームとの衝突判定
+            platforms.forEach(platform => {
+                if (checkCollision(player, platform)) {
+                    // 上から落ちてきた場合
+                    if (player.velocityY > 0 && player.y + player.height - player.velocityY <= platform.y + 5) {
+                        player.y = platform.y - player.height;
+                        player.velocityY = 0;
+                        player.isOnGround = true;
+                        player.isJumping = false;
+                    }
+                    // 下から当たった場合
+                    else if (player.velocityY < 0 && player.y - player.velocityY >= platform.y + platform.height - 5) {
+                        player.y = platform.y + platform.height;
+                        player.velocityY = 0;
+                    }
+                    // 横から当たった場合
+                    else if (player.velocityX > 0) {
+                        player.x = platform.x - player.width;
+                    } else if (player.velocityX < 0) {
+                        player.x = platform.x + platform.width;
+                    }
+                }
+            });
+
+            // 画面端の制限
+            if (player.x < 0) player.x = 0;
+            if (player.x + player.width > canvas.width) {
+                player.x = canvas.width - player.width;
+            }
+
+            // 画面下に落ちたらリセット
+            if (player.y > canvas.height) {
+                player.x = 100;
+                player.y = 100;
+                player.velocityX = 0;
+                player.velocityY = 0;
+            }
+        }
+
+        // 描画
+        function draw() {
+            // 背景をクリア
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // プラットフォームを描画
+            platforms.forEach(platform => {
+                // ブロック画像でタイル状に描画
+                const blocksX = Math.ceil(platform.width / BLOCK_SIZE);
+                const blocksY = Math.ceil(platform.height / BLOCK_SIZE);
+
+                for (let i = 0; i < blocksX; i++) {
+                    for (let j = 0; j < blocksY; j++) {
+                        const drawX = platform.x + i * BLOCK_SIZE;
+                        const drawY = platform.y + j * BLOCK_SIZE;
+                        const drawWidth = Math.min(BLOCK_SIZE, platform.width - i * BLOCK_SIZE);
+                        const drawHeight = Math.min(BLOCK_SIZE, platform.height - j * BLOCK_SIZE);
+
+                        if (blockImg.complete) {
+                            ctx.drawImage(blockImg, drawX, drawY, drawWidth, drawHeight);
+                        } else {
+                            // 画像が読み込まれていない場合の代替表示
+                            ctx.fillStyle = '#8B4513';
+                            ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
+                            ctx.strokeStyle = '#654321';
+                            ctx.strokeRect(drawX, drawY, drawWidth, drawHeight);
+                        }
+                    }
+                }
+            });
+
+            // プレイヤーを描画
+            if (playerImg.complete) {
+                ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+            } else {
+                // 画像が読み込まれていない場合の代替表示
+                ctx.fillStyle = '#ff6b6b';
+                ctx.fillRect(player.x, player.y, player.width, player.height);
+            }
+
+            // デバッグ情報
+            ctx.fillStyle = '#fff';
+            ctx.font = '14px Arial';
+            ctx.fillText(`位置: (${Math.floor(player.x)}, ${Math.floor(player.y)})`, 10, 20);
+            ctx.fillText(`速度: (${Math.floor(player.velocityX)}, ${Math.floor(player.velocityY)})`, 10, 40);
+            ctx.fillText(`地面: ${player.isOnGround ? 'はい' : 'いいえ'}`, 10, 60);
+        }
+
+        // ゲームループ
+        function gameLoop() {
+            updatePlayer();
+            draw();
             requestAnimationFrame(gameLoop);
         }
 
-        function updatePosition() {
-            character.style.left = posX + 'px';
-            character.style.top = posY + 'px';
+        // 画像が読み込まれたらゲーム開始
+        let imagesLoaded = 0;
+        const totalImages = 2;
+
+        function checkImagesLoaded() {
+            imagesLoaded++;
+            if (imagesLoaded === totalImages) {
+                gameLoop();
+            }
         }
 
-        // ドラッグ機能
-        let isDragging = false;
-        let dragOffsetX = 0;
-        let dragOffsetY = 0;
+        playerImg.onload = checkImagesLoaded;
+        blockImg.onload = checkImagesLoaded;
 
-        character.addEventListener('mousedown', (e) => {
-            isDragging = true;
-            dragOffsetX = e.clientX - posX;
-            dragOffsetY = e.clientY - posY;
-        });
-
-        document.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                posX = Math.max(0, Math.min(window.innerWidth - 100, e.clientX - dragOffsetX));
-                posY = Math.max(0, Math.min(window.innerHeight - 100, e.clientY - dragOffsetY));
-                updatePosition();
-            }
-        });
-
-        document.addEventListener('mouseup', () => {
-            isDragging = false;
-        });
-
-        // タッチ操作（スマホ対応）
-        character.addEventListener('touchstart', (e) => {
-            const touch = e.touches[0];
-            isDragging = true;
-            dragOffsetX = touch.clientX - posX;
-            dragOffsetY = touch.clientY - posY;
-            e.preventDefault();
-        });
-
-        document.addEventListener('touchmove', (e) => {
-            if (isDragging) {
-                const touch = e.touches[0];
-                posX = Math.max(0, Math.min(window.innerWidth - 100, touch.clientX - dragOffsetX));
-                posY = Math.max(0, Math.min(window.innerHeight - 100, touch.clientY - dragOffsetY));
-                updatePosition();
-                e.preventDefault();
-            }
-        });
-
-        document.addEventListener('touchend', () => {
-            isDragging = false;
-        });
-
-        // ウィンドウリサイズ対応
-        window.addEventListener('resize', () => {
-            posX = Math.min(posX, window.innerWidth - 100);
-            posY = Math.min(posY, window.innerHeight - 100);
-            updatePosition();
-        });
-
-        // ゲームループ開始
-        gameLoop();
+        // 画像読み込みエラー時もゲームを開始
+        playerImg.onerror = checkImagesLoaded;
+        blockImg.onerror = checkImagesLoaded;
     </script>
 </body>
 </html>
