@@ -437,10 +437,64 @@
             ctx.fillText(`地面: ${player.isOnGround ? 'はい' : 'いいえ'}`, 10, 60);
         }
 
+        // プレイヤーと敵の衝突処理
+        function handlePlayerEnemyCollision() {
+            enemies.forEach(enemy => {
+                if (checkCollision(player, enemy)) {
+                    // プレイヤーと敵の中心位置を計算
+                    const playerCenterX = player.x + player.width / 2;
+                    const playerCenterY = player.y + player.height / 2;
+                    const enemyCenterX = enemy.x + enemy.width / 2;
+                    const enemyCenterY = enemy.y + enemy.height / 2;
+
+                    // 衝突の方向を判定
+                    const deltaX = enemyCenterX - playerCenterX;
+                    const deltaY = enemyCenterY - playerCenterY;
+
+                    // 横方向と縦方向のどちらの衝突が主かを判定
+                    const absX = Math.abs(deltaX);
+                    const absY = Math.abs(deltaY);
+
+                    // 跳ね返る強さ
+                    const BOUNCE_STRENGTH_X = 8;
+                    const BOUNCE_STRENGTH_Y = -12;
+
+                    if (absX > absY) {
+                        // 横方向の衝突（プレイヤーが左右から衝突）
+                        if (deltaX > 0) {
+                            // プレイヤーが左から衝突 → 敵を右に跳ね返す
+                            enemy.velocityX = BOUNCE_STRENGTH_X;
+                        } else {
+                            // プレイヤーが右から衝突 → 敵を左に跳ね返す
+                            enemy.velocityX = -BOUNCE_STRENGTH_X;
+                        }
+                        // 少し上にも跳ね返す
+                        enemy.velocityY = BOUNCE_STRENGTH_Y * 0.5;
+                    } else {
+                        // 縦方向の衝突
+                        if (deltaY > 0 && player.velocityY > 0) {
+                            // プレイヤーが上から衝突 → 敵を下に押す＆横にも跳ね返す
+                            enemy.velocityY = 5;
+                            // プレイヤーの移動方向に応じて横にも跳ね返す
+                            if (player.velocityX !== 0) {
+                                enemy.velocityX = player.velocityX > 0 ? BOUNCE_STRENGTH_X : -BOUNCE_STRENGTH_X;
+                            }
+                            // プレイヤーは少し跳ね返る
+                            player.velocityY = BOUNCE_STRENGTH_Y * 0.5;
+                        } else if (deltaY < 0) {
+                            // プレイヤーが下から衝突 → 敵を上に跳ね返す
+                            enemy.velocityY = BOUNCE_STRENGTH_Y;
+                        }
+                    }
+                }
+            });
+        }
+
         // ゲームループ
         function gameLoop() {
             updatePlayer();
             updateEnemies();
+            handlePlayerEnemyCollision();
             draw();
             requestAnimationFrame(gameLoop);
         }
