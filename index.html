@@ -393,12 +393,12 @@
             // プレイヤーを描画
             if (playerImg.complete) {
                 ctx.save();
-                if (player.direction === -1) {
-                    // 左向きの場合、画像を反転
+                if (player.direction === 1) {
+                    // 右向きの場合、画像を反転
                     ctx.scale(-1, 1);
                     ctx.drawImage(playerImg, -player.x - player.width, player.y, player.width, player.height);
                 } else {
-                    // 右向きの場合、通常描画
+                    // 左向きの場合、通常描画
                     ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
                 }
                 ctx.restore();
@@ -413,12 +413,12 @@
                 const enemyImg = enemyImages[enemy.imageIndex];
                 if (enemyImg.complete) {
                     ctx.save();
-                    if (enemy.direction === -1) {
-                        // 左向きの場合、画像を反転
+                    if (enemy.direction === 1) {
+                        // 右向きの場合、画像を反転
                         ctx.scale(-1, 1);
                         ctx.drawImage(enemyImg, -enemy.x - enemy.width, enemy.y, enemy.width, enemy.height);
                     } else {
-                        // 右向きの場合、通常描画
+                        // 左向きの場合、通常描画
                         ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
                     }
                     ctx.restore();
