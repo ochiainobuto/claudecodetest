@@ -163,7 +163,9 @@
                 velocityX: 0,
                 velocityY: 0,
                 isOnGround: false,
-                imageIndex: index // どの画像を使うか
+                imageIndex: index, // どの画像を使うか
+                direction: Math.random() < 0.5 ? -1 : 1, // ランダムな初期方向（-1 or 1）
+                directionTimer: Math.random() * 120 + 60 // 方向転換までの時間（60-180フレーム）
             });
         });
 
@@ -253,21 +255,20 @@
             }
         }
 
-        // 敵キャラクターの更新（プレイヤーを追跡）
+        // 敵キャラクターの更新（自由に動き回る）
         function updateEnemies() {
             enemies.forEach(enemy => {
-                // プレイヤーとの距離を計算
-                const dx = player.x - enemy.x;
-                const dy = player.y - enemy.y;
-                const distance = Math.sqrt(dx * dx + dy * dy);
+                // 方向転換タイマーを減少
+                enemy.directionTimer--;
 
-                // プレイヤーの方向へ移動（正規化）
-                if (distance > 5) { // 一定距離より遠い場合のみ追跡
-                    enemy.velocityX = (dx / distance) * ENEMY_SPEED;
-                    // Y方向は重力の影響を受けるため、直接的には追わない
-                } else {
-                    enemy.velocityX = 0;
+                // タイマーが0になったらランダムに方向転換
+                if (enemy.directionTimer <= 0) {
+                    enemy.direction = Math.random() < 0.5 ? -1 : 1;
+                    enemy.directionTimer = Math.random() * 120 + 60; // 60-180フレーム
                 }
+
+                // 現在の方向に基づいて移動
+                enemy.velocityX = enemy.direction * ENEMY_SPEED;
 
                 // 重力適用
                 enemy.velocityY += GRAVITY;
@@ -293,23 +294,46 @@
                             enemy.y = platform.y + platform.height;
                             enemy.velocityY = 0;
                         }
-                        // 横から当たった場合
+                        // 横から当たった場合（プラットフォームの端で反転）
                         else if (enemy.velocityX > 0) {
                             enemy.x = platform.x - enemy.width;
+                            enemy.direction *= -1; // 方向を反転
                         } else if (enemy.velocityX < 0) {
                             enemy.x = platform.x + platform.width;
+                            enemy.direction *= -1; // 方向を反転
                         }
                     }
                 });
 
-                // プレイヤーが上にいて、敵が地面にいる場合、ジャンプを試みる
-                if (enemy.isOnGround && player.y < enemy.y - 20) {
-                    const horizontalDistance = Math.abs(player.x - enemy.x);
-                    // プレイヤーが近くにいる場合のみジャンプ
-                    if (horizontalDistance < 150) {
-                        enemy.velocityY = JUMP_STRENGTH * 0.8; // プレイヤーより弱めのジャンプ
-                        enemy.isOnGround = false;
+                // プラットフォームの端に来たら方向転換（落下防止）
+                if (enemy.isOnGround) {
+                    let onPlatformEdge = true;
+                    const futureX = enemy.x + enemy.direction * (enemy.width + 5);
+                    const checkY = enemy.y + enemy.height + 5;
+
+                    // 進行方向の先にプラットフォームがあるかチェック
+                    platforms.forEach(platform => {
+                        const checkRect = {
+                            x: futureX,
+                            y: checkY - 10,
+                            width: 5,
+                            height: 10
+                        };
+                        if (checkCollision(checkRect, platform)) {
+                            onPlatformEdge = false;
+                        }
+                    });
+
+                    // プラットフォームの端なら方向転換
+                    if (onPlatformEdge) {
+                        enemy.direction *= -1;
                     }
+                }
+
+                // ランダムにジャンプ（地面にいる時のみ、低確率）
+                if (enemy.isOnGround && Math.random() < 0.01) {
+                    enemy.velocityY = JUMP_STRENGTH * 0.7; // プレイヤーより弱めのジャンプ
+                    enemy.isOnGround = false;
                 }
 
                 // 画面外に落ちたら元の位置に戻す
@@ -319,6 +343,8 @@
                     enemy.y = originalPos.y;
                     enemy.velocityX = 0;
                     enemy.velocityY = 0;
+                    enemy.direction = Math.random() < 0.5 ? -1 : 1;
+                    enemy.directionTimer = Math.random() * 120 + 60;
                 }
             });
         }
