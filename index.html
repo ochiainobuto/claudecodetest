@@ -119,7 +119,8 @@
             velocityX: 0,
             velocityY: 0,
             isOnGround: false,
-            isJumping: false
+            isJumping: false,
+            direction: 1 // 1: 右向き, -1: 左向き
         };
 
         // ドンキーコング風のステージレイアウト
@@ -206,8 +207,10 @@
             // 水平移動
             if (keys['ArrowLeft'] || keys['a']) {
                 player.velocityX = -MOVE_SPEED;
+                player.direction = -1; // 左向き
             } else if (keys['ArrowRight'] || keys['d']) {
                 player.velocityX = MOVE_SPEED;
+                player.direction = 1; // 右向き
             } else {
                 player.velocityX = 0;
             }
@@ -389,7 +392,16 @@
 
             // プレイヤーを描画
             if (playerImg.complete) {
-                ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+                ctx.save();
+                if (player.direction === -1) {
+                    // 左向きの場合、画像を反転
+                    ctx.scale(-1, 1);
+                    ctx.drawImage(playerImg, -player.x - player.width, player.y, player.width, player.height);
+                } else {
+                    // 右向きの場合、通常描画
+                    ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+                }
+                ctx.restore();
             } else {
                 // 画像が読み込まれていない場合の代替表示
                 ctx.fillStyle = '#ff6b6b';
@@ -400,7 +412,16 @@
             enemies.forEach(enemy => {
                 const enemyImg = enemyImages[enemy.imageIndex];
                 if (enemyImg.complete) {
-                    ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
+                    ctx.save();
+                    if (enemy.direction === -1) {
+                        // 左向きの場合、画像を反転
+                        ctx.scale(-1, 1);
+                        ctx.drawImage(enemyImg, -enemy.x - enemy.width, enemy.y, enemy.width, enemy.height);
+                    } else {
+                        // 右向きの場合、通常描画
+                        ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
+                    }
+                    ctx.restore();
                 } else {
                     // 画像が読み込まれていない場合の代替表示
                     ctx.fillStyle = '#ff4444';
