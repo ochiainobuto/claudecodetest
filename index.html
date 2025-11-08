@@ -89,10 +89,19 @@
         const blockImg = new Image();
         blockImg.src = 'images/block01.png';
 
+        // 敵キャラクター画像の読み込み
+        const enemyImages = [];
+        for (let i = 1; i <= 10; i++) {
+            const img = new Image();
+            img.src = `images/chara-${String(i).padStart(5, '0')}.png`;
+            enemyImages.push(img);
+        }
+
         // ゲーム定数
         const GRAVITY = 0.6;
         const JUMP_STRENGTH = -15;
         const MOVE_SPEED = 5;
+        const ENEMY_SPEED = 2.5; // 敵の移動速度（プレイヤーより遅め）
         const BLOCK_SIZE = 40;
 
         // プレイヤー
@@ -126,6 +135,37 @@
             // 4階層目（左側）- ゴール地点
             { x: 0, y: 80, width: 400, height: 40 }
         ];
+
+        // 敵キャラクター配列
+        const enemies = [];
+
+        // 10体の敵をステージ上に配置
+        const enemyPositions = [
+            { x: 600, y: 380 },  // 1階層目
+            { x: 700, y: 380 },  // 1階層目
+            { x: 100, y: 260 },  // 2階層目
+            { x: 250, y: 260 },  // 2階層目
+            { x: 500, y: 140 },  // 3階層目
+            { x: 650, y: 140 },  // 3階層目
+            { x: 750, y: 140 },  // 3階層目
+            { x: 100, y: 20 },   // 4階層目
+            { x: 250, y: 20 },   // 4階層目
+            { x: 350, y: 500 }   // 底面
+        ];
+
+        // 敵キャラクターを初期化
+        enemyPositions.forEach((pos, index) => {
+            enemies.push({
+                x: pos.x,
+                y: pos.y,
+                width: 40,
+                height: 40,
+                velocityX: 0,
+                velocityY: 0,
+                isOnGround: false,
+                imageIndex: index // どの画像を使うか
+            });
+        });
 
         // キー入力
         const keys = {};
@@ -213,6 +253,76 @@
             }
         }
 
+        // 敵キャラクターの更新（プレイヤーを追跡）
+        function updateEnemies() {
+            enemies.forEach(enemy => {
+                // プレイヤーとの距離を計算
+                const dx = player.x - enemy.x;
+                const dy = player.y - enemy.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+
+                // プレイヤーの方向へ移動（正規化）
+                if (distance > 5) { // 一定距離より遠い場合のみ追跡
+                    enemy.velocityX = (dx / distance) * ENEMY_SPEED;
+                    // Y方向は重力の影響を受けるため、直接的には追わない
+                } else {
+                    enemy.velocityX = 0;
+                }
+
+                // 重力適用
+                enemy.velocityY += GRAVITY;
+
+                // 位置更新
+                enemy.x += enemy.velocityX;
+                enemy.y += enemy.velocityY;
+
+                // 地面判定フラグをリセット
+                enemy.isOnGround = false;
+
+                // プラットフォームとの衝突判定
+                platforms.forEach(platform => {
+                    if (checkCollision(enemy, platform)) {
+                        // 上から落ちてきた場合
+                        if (enemy.velocityY > 0 && enemy.y + enemy.height - enemy.velocityY <= platform.y + 5) {
+                            enemy.y = platform.y - enemy.height;
+                            enemy.velocityY = 0;
+                            enemy.isOnGround = true;
+                        }
+                        // 下から当たった場合
+                        else if (enemy.velocityY < 0 && enemy.y - enemy.velocityY >= platform.y + platform.height - 5) {
+                            enemy.y = platform.y + platform.height;
+                            enemy.velocityY = 0;
+                        }
+                        // 横から当たった場合
+                        else if (enemy.velocityX > 0) {
+                            enemy.x = platform.x - enemy.width;
+                        } else if (enemy.velocityX < 0) {
+                            enemy.x = platform.x + platform.width;
+                        }
+                    }
+                });
+
+                // プレイヤーが上にいて、敵が地面にいる場合、ジャンプを試みる
+                if (enemy.isOnGround && player.y < enemy.y - 20) {
+                    const horizontalDistance = Math.abs(player.x - enemy.x);
+                    // プレイヤーが近くにいる場合のみジャンプ
+                    if (horizontalDistance < 150) {
+                        enemy.velocityY = JUMP_STRENGTH * 0.8; // プレイヤーより弱めのジャンプ
+                        enemy.isOnGround = false;
+                    }
+                }
+
+                // 画面外に落ちたら元の位置に戻す
+                if (enemy.y > canvas.height) {
+                    const originalPos = enemyPositions[enemy.imageIndex];
+                    enemy.x = originalPos.x;
+                    enemy.y = originalPos.y;
+                    enemy.velocityX = 0;
+                    enemy.velocityY = 0;
+                }
+            });
+        }
+
         // 描画
         function draw() {
             // 背景をクリア
@@ -254,6 +364,18 @@
                 ctx.fillRect(player.x, player.y, player.width, player.height);
             }
 
+            // 敵キャラクターを描画
+            enemies.forEach(enemy => {
+                const enemyImg = enemyImages[enemy.imageIndex];
+                if (enemyImg.complete) {
+                    ctx.drawImage(enemyImg, enemy.x, enemy.y, enemy.width, enemy.height);
+                } else {
+                    // 画像が読み込まれていない場合の代替表示
+                    ctx.fillStyle = '#ff4444';
+                    ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+                }
+            });
+
             // デバッグ情報
             ctx.fillStyle = '#fff';
             ctx.font = '14px Arial';
@@ -265,13 +387,14 @@
         // ゲームループ
         function gameLoop() {
             updatePlayer();
+            updateEnemies();
             draw();
             requestAnimationFrame(gameLoop);
         }
 
         // 画像が読み込まれたらゲーム開始
         let imagesLoaded = 0;
-        const totalImages = 2;
+        const totalImages = 2 + enemyImages.length; // プレイヤー + ブロック + 敵10体
 
         function checkImagesLoaded() {
             imagesLoaded++;
@@ -282,6 +405,12 @@
 
         playerImg.onload = checkImagesLoaded;
         blockImg.onload = checkImagesLoaded;
+
+        // 敵画像の読み込み
+        enemyImages.forEach(img => {
+            img.onload = checkImagesLoaded;
+            img.onerror = checkImagesLoaded;
+        });
 
         // 画像読み込みエラー時もゲームを開始
         playerImg.onerror = checkImagesLoaded;
